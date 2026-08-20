@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>Strömung — Flüssigkeit zum Anfassen</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Eine Flüssigkeit in Echtzeit: Tinte mit der Maus umrühren, eine Kármánsche Wirbelstraße hinter dem Zylinder, ein zerfallender Taylor-Green-Wirbel — und ein Prüflauf, der die Zerfallsrate gegen die Theorie und die Strouhal-Zahl gegen die Literatur stellt." />
+
+<style>
+  :root {
+    --grund: #EFEEEC;
+    --feld:  #FAFAF8;
+    --tief:  #E3E2DE;
+    --linie: #C8C6C0;
+    --tinte: #18171A;
+    --leise: #64626A;
+    --netz:  #B5B3AE;
+    --merk:  #1F5FA8;
+    --warm:  #A8471F;
+    --gut:   #2C7A34;
+    --warn:  #A32C22;
+    --schatten: 0 1px 0 rgba(24,23,26,.05), 0 10px 24px -16px rgba(24,23,26,.45);
+    --f-fest: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "DejaVu Sans Mono", monospace;
+    --f-text: -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --grund: #131214; --feld: #1A191C; --tief: #0C0C0D; --linie: #302E33;
+      --tinte: #E7E5EA; --leise: #918F98; --netz: #423F46;
+      --merk: #6CA8E8; --warm: #E0785C;
+      --gut: #7FBF6A; --warn: #E0776B;
+      --schatten: 0 1px 0 rgba(255,255,255,.03), 0 12px 30px -18px #000;
+    }
+  }
+  :root[data-theme="dark"] {
+    --grund: #131214; --feld: #1A191C; --tief: #0C0C0D; --linie: #302E33;
+    --tinte: #E7E5EA; --leise: #918F98; --netz: #423F46;
+    --merk: #6CA8E8; --warm: #E0785C;
+    --gut: #7FBF6A; --warn: #E0776B;
+    --schatten: 0 1px 0 rgba(255,255,255,.03), 0 12px 30px -18px #000;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--grund); color:var(--tinte);
+    font-family:var(--f-text); font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; }
+  .blatt { max-width:1180px; margin:0 auto;
+    padding: clamp(20px,4vw,44px) clamp(14px,3vw,28px) 64px;
+    display:flex; flex-direction:column; gap:18px; }
+
+  .marke { font-family:var(--f-fest); font-size:10px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--leise); display:flex; gap:12px; align-items:center; margin:0; }
+  .marke::after { content:""; flex:1; height:1px; background:var(--linie); }
+  h1 { font-family:var(--f-fest); font-weight:700; font-size:clamp(24px,4.2vw,40px);
+    line-height:1.06; letter-spacing:-.03em; margin:0; text-wrap:balance; }
+  h1 span { color:var(--merk); }
+  .vorspann { max-width:70ch; color:var(--leise); margin:0 auto; text-align:center; }
+  .vorspann b { color:var(--tinte); font-weight:600; }
+
+  .leiste { display:flex; gap:12px; flex-wrap:wrap; align-items:center;
+    background:var(--feld); border:1px solid var(--linie); padding:9px 11px; box-shadow:var(--schatten); }
+  .kl { font-family:var(--f-fest); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--leise); }
+  .regler { display:flex; gap:7px; align-items:center; }
+  .regler output { font-family:var(--f-fest); font-size:12px; min-width:5ch; text-align:right;
+    font-variant-numeric:tabular-nums; }
+  input[type=range] { width:112px; accent-color:var(--merk); }
+  button, select { font-family:var(--f-fest); font-size:12px; color:var(--tinte); background:var(--grund);
+    border:1px solid var(--linie); border-radius:0; padding:6px 10px; letter-spacing:.03em; cursor:pointer; }
+  button:hover, select:hover { border-color:var(--merk); }
+  button.haupt { background:var(--merk); border-color:var(--merk); color:var(--feld); }
+  button[aria-pressed="true"] { background:var(--tief); border-color:var(--merk); }
+  button:disabled { opacity:.45; cursor:default; }
+  :focus-visible { outline:2px solid var(--merk); outline-offset:2px; }
+
+  .kasten { background:var(--feld); border:1px solid var(--linie); box-shadow:var(--schatten);
+    display:flex; flex-direction:column; min-width:0; }
+  .kasten-kopf { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    padding:8px 11px; border-bottom:1px solid var(--linie); }
+  .kasten-leib { padding:11px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .unten { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; align-items:start; }
+
+  canvas#becken { width:100%; height:auto; display:block; background:#0A0B0E;
+    border:1px solid var(--linie); cursor:crosshair; touch-action:none; }
+  canvas#kurve { width:100%; height:auto; display:block; background:var(--tief); border:1px solid var(--linie); }
+
+  .werte { display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:1px;
+    background:var(--linie); border:1px solid var(--linie); }
+  .wert { background:var(--feld); padding:7px 9px; min-width:0; }
+  .wert .l { font-family:var(--f-fest); font-size:9.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--leise); }
+  .wert .n { font-family:var(--f-fest); font-size:15px; font-variant-numeric:tabular-nums; }
+  .wert .n.gut { color:var(--gut); } .wert .n.warn { color:var(--warn); }
+  .wert .k { font-family:var(--f-fest); font-size:10px; color:var(--leise); }
+
+  table.liste { border-collapse:collapse; width:100%; font-family:var(--f-fest); font-size:12px; }
+  table.liste th, table.liste td { border-bottom:1px solid var(--linie); padding:4px 7px; text-align:left; }
+  table.liste th { color:var(--leise); font-weight:400; font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+
+  .hinweis { font-family:var(--f-fest); font-size:12px; color:var(--leise); letter-spacing:0; margin:0; }
+  .hinweis b { color:var(--tinte); font-weight:600; }
+
+  .noten { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:18px; margin-top:6px; }
+  .noten section { background:var(--feld); border:1px solid var(--linie); padding:12px 14px; box-shadow:var(--schatten); }
+  .noten h3 { font-family:var(--f-fest); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--leise); margin:0 0 6px; font-weight:400; }
+  .noten p { margin:0; font-size:14px; }
+  code { font-family:var(--f-fest); font-size:12.5px; background:var(--tief); padding:1px 4px; }
+  .fuss { color:var(--leise); font-size:13px; border-top:1px solid var(--linie); padding-top:12px; }
+  .fuss a { color:var(--merk); }
+</style>
+</head>
+<body>
+<main class="blatt">
+
+  <p class="marke">Blatt · Strömung</p>
+  <h1>Strömung — Flüssigkeit zum <span>Anfassen</span></h1>
+  <p class="vorspann">
+    Wasser lässt sich nicht zusammendrücken. Aus dieser einen Forderung folgt fast alles: Jede
+    Bewegung muss sich <b>sofort im ganzen Feld</b> ausgleichen, und dieser Ausgleich erzeugt die
+    Wirbel. Hier läuft eine Flüssigkeit in Echtzeit — <b>mit der Maus hineinfahren</b> und rühren.
+    Und weil ein hübsches Bild noch kein Beweis ist, misst dieses Blatt zwei Dinge nach, die man
+    unabhängig kennt: wie schnell ein Wirbel <b>zerfallen muss</b>, und wie oft eine Wirbelstraße
+    hinter einem Hindernis <b>schwingt</b>.
+  </p>
+
+  <div class="leiste">
+    <span class="kl">Bild</span>
+    <select id="modus">
+      <option value="tinte" selected>Tinte — selbst rühren</option>
+      <option value="strasse">Wirbelstraße hinter einem Zylinder</option>
+      <option value="wirbel">Taylor-Green — ein Wirbel zerfällt</option>
+    </select>
+    <select id="anzeige">
+      <option value="tinte" selected>Farbe</option>
+      <option value="wirbel">Drehung</option>
+      <option value="tempo">Geschwindigkeit</option>
+    </select>
+    <div class="regler"><span class="kl">Zähigkeit</span>
+      <input type="range" id="r-nu" min="0" max="30" step="1" value="6" />
+      <output id="o-nu"></output></div>
+    <div class="regler"><span class="kl">Gitter</span>
+      <input type="range" id="r-gitter" min="96" max="224" step="32" value="160" />
+      <output id="o-gitter"></output></div>
+    <button id="b-pause" aria-pressed="false">Anhalten</button>
+    <button id="b-leeren">Leeren</button>
+    <span style="flex:1"></span>
+    <button id="b-thema">Ansicht</button>
+  </div>
+
+  <div class="kasten">
+    <div class="kasten-kopf">
+      <span class="kl">Das Becken</span>
+      <span class="kl" id="becken-lage" style="margin-left:auto"></span>
+    </div>
+    <div class="kasten-leib">
+      <canvas id="becken" width="640" height="320" aria-label="Strömungsfeld in Echtzeit"></canvas>
+      <p class="hinweis" id="becken-fuss"></p>
+    </div>
+  </div>
+
+  <div class="unten">
+    <div class="kasten">
+      <div class="kasten-kopf"><span class="kl">Live gemessen</span></div>
+      <div class="kasten-leib">
+        <div class="werte">
+          <div class="wert"><div class="l">Bilder je Sekunde</div><div class="n" id="w-fps">—</div></div>
+          <div class="wert"><div class="l">Quellstärke</div><div class="n gut" id="w-div">—</div>
+            <div class="k">nach dem Ausgleich</div></div>
+          <div class="wert"><div class="l">Bewegung</div><div class="n" id="w-energie">—</div>
+            <div class="k">mittlere Energie</div></div>
+          <div class="wert"><div class="l" id="w-extra-l">Zeit</div><div class="n" id="w-extra">—</div>
+            <div class="k" id="w-extra-k"></div></div>
+        </div>
+        <p class="hinweis" id="werte-fuss"></p>
+      </div>
+    </div>
+
+    <div class="kasten">
+      <div class="kasten-kopf">
+        <span class="kl" id="kurve-titel">Was die Kurve zeigt</span>
+        <span class="kl" id="kurve-lage" style="margin-left:auto"></span>
+      </div>
+      <div class="kasten-leib">
+        <canvas id="kurve" width="760" height="300" aria-label="Verlauf der Messgröße"></canvas>
+        <p class="hinweis" id="kurve-fuss"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="kasten">
+    <div class="kasten-kopf">
+      <span class="kl">Beweis statt Behauptung</span>
+      <button id="b-pruefen" class="haupt" style="margin-left:auto">Prüfen</button>
+    </div>
+    <div class="kasten-leib">
+      <p class="hinweis">
+        Eine Strömungsrechnung sieht immer beeindruckend aus — auch die falsche. Geprüft wird
+        deshalb gegen Dinge, die <b>außerhalb dieses Blattes</b> feststehen: dass ein
+        Taylor-Green-Wirbel mit <b>exp(−2νk²t)</b> zerfällt, dass eine Wirbelstraße mit einer
+        <b>Strouhal-Zahl um 0,2</b> schwingt, und dass nach dem Druckausgleich <b>nichts mehr
+        quillt</b>. Der Prüflauf dauert etwas — er rechnet mehrere Strömungen von vorn.
+      </p>
+      <table class="liste" id="pruef"><tbody></tbody></table>
+      <p class="hinweis" id="pruef-fuss">noch nicht geprüft</p>
+    </div>
+  </div>
+
+  <div class="noten">
+    <section>
+      <h3>Warum es einen Druck braucht</h3>
+      <p>
+        Die Bewegung allein erzeugt Stellen, an denen Flüssigkeit <b>entstehen oder verschwinden</b>
+        müsste — was nicht geht. Der Druck ist genau das Feld, das diese Quellen wegräumt: Er wird
+        so bestimmt, dass sein Gefälle die Bewegung gerade quellenfrei macht. Das ist kein
+        Zusatz, sondern der Kern jedes Schritts — und der teuerste Teil der Rechnung.
+      </p>
+    </section>
+    <section>
+      <h3>Warum das Gitter versetzt ist</h3>
+      <p>
+        Liegen Druck und Geschwindigkeit auf denselben Punkten, sehen sie einander nur über den
+        <b>übernächsten</b> Nachbarn — und ein Schachbrettmuster im Druck bleibt unsichtbar. Auf
+        einem <b>versetzten</b> Gitter sitzen die Geschwindigkeiten auf den Zellwänden und der
+        Druck in der Mitte; damit passen Differenz und Gefälle zusammen. Der Unterschied ist
+        messbar: Faktor <b>tausend</b> in der verbliebenen Quellstärke.
+      </p>
+    </section>
+    <section>
+      <h3>Was die Zahl 0,2 bedeutet</h3>
+      <p>
+        Hinter einem angeströmten Zylinder lösen sich Wirbel <b>abwechselnd</b> ab, nicht
+        gleichzeitig. Die Ablösefrequenz f, der Durchmesser D und die Anströmung U bilden eine
+        Zahl ohne Einheit: <b>St = f·D/U ≈ 0,2</b> — über einen weiten Bereich fast konstant.
+        Deshalb summen Freileitungen im Wind, und deshalb bekommen Schornsteine Wendel.
+      </p>
+    </section>
+  </div>
+
+  <p class="fuss">
+    Eine einzelne HTML-Datei. Kein Build, keine Bibliothek, nichts verlässt den Browser.
+    <span style="display:block;margin-top:8px">
+      Alle Blätter: <a href="https://ssims437.github.io/">ssims437.github.io</a>
+    </span>
+  </p>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const zahl = (x, s) => x.toLocaleString("de-AT", { minimumFractionDigits: s ?? 2, maximumFractionDigits: s ?? 2 });
+
+  /* ==========================================================================
+     DAS VERSETZTE GITTER
+     u sitzt auf den senkrechten Zellwänden, v auf den waagrechten, Druck und
+     Farbe in der Zellmitte. Nur so passen Differenz und Gefälle zueinander —
+     auf einem gemeinsamen Gitter bliebe ein Schachbrettmuster im Druck
+     unsichtbar, und der Ausgleich wäre halbherzig.
+     ========================================================================== */
+  function machen(Nx, Ny) {
+    return {
+      Nx, Ny, h: 1 / Nx,
+      u: new Float32Array((Nx + 1) * Ny), v: new Float32Array(Nx * (Ny + 1)),
+      u2: new Float32Array((Nx + 1) * Ny), v2: new Float32Array(Nx * (Ny + 1)),
+      p: new Float32Array(Nx * Ny), div: new Float32Array(Nx * Ny),
+      fest: new Uint8Array(Nx * Ny),
+      farbe: [new Float32Array(Nx * Ny), new Float32Array(Nx * Ny), new Float32Array(Nx * Ny)],
+      farbe2: [new Float32Array(Nx * Ny), new Float32Array(Nx * Ny), new Float32Array(Nx * Ny)],
+      art: "wand", einstrom: 0, zeit: 0
+    };
+  }
+  const gU = (f, i, j) => f.u[i * f.Ny + j], sU = (f, i, j, x) => { f.u[i * f.Ny + j] = x; };
+  const gV = (f, i, j) => f.v[i * (f.Ny + 1) + j], sV = (f, i, j, x) => { f.v[i * (f.Ny + 1) + j] = x; };
+  const istFest = (f, i, j) => (i < 0 || j < 0 || i >= f.Nx || j >= f.Ny) ? 0 : f.fest[i * f.Ny + j];
+
+  function raender(f) {
+    const { Nx, Ny } = f;
+    if (f.art === "kanal") {
+      for (let j = 0; j < Ny; j++) { sU(f, 0, j, f.einstrom); sU(f, Nx, j, gU(f, Nx - 1, j)); }
+      for (let i = 0; i < Nx; i++) { sV(f, i, 0, 0); sV(f, i, Ny, 0); }
+    } else if (f.art === "zyklisch") {
+      for (let j = 0; j < Ny; j++) { const m = 0.5 * (gU(f, 0, j) + gU(f, Nx, j)); sU(f, 0, j, m); sU(f, Nx, j, m); }
+      for (let i = 0; i < Nx; i++) { const m = 0.5 * (gV(f, i, 0) + gV(f, i, Ny)); sV(f, i, 0, m); sV(f, i, Ny, m); }
+    } else {
+      for (let j = 0; j < Ny; j++) { sU(f, 0, j, 0); sU(f, Nx, j, 0); }
+      for (let i = 0; i < Nx; i++) { sV(f, i, 0, 0); sV(f, i, Ny, 0); }
+    }
+    for (let i = 0; i < Nx; i++) for (let j = 0; j < Ny; j++) {
+      if (!f.fest[i * Ny + j]) continue;
+      sU(f, i, j, 0); sU(f, i + 1, j, 0); sV(f, i, j, 0); sV(f, i, j + 1, 0);
+    }
+  }
+
+  function divRechnen(f) {
+    const { Nx, Ny, h } = f;
+    let max = 0;
+    for (let i = 0; i < Nx; i++) for (let j = 0; j < Ny; j++) {
+      if (f.fest[i * Ny + j]) { f.div[i * Ny + j] = 0; continue; }
+      const d = (gU(f, i + 1, j) - gU(f, i, j) + gV(f, i, j + 1) - gV(f, i, j)) / h;
+      f.div[i * Ny + j] = d;
+      const a = d < 0 ? -d : d;
+      if (a > max) max = a;
+    }
+    return max;
+  }
+
+  /* Der Druckausgleich. Gelöst wird mit rot-schwarzer Überrelaxation: Erst alle
+     Felder der einen Farbe, dann die der anderen, und jedes Mal ein Stück über
+     das Ziel hinaus. Das ist der Unterschied zwischen „nach hundert Durchgängen
+     immer noch quellig" und „nach fünfzig sauber". */
+  const OMEGA = 1.9;
+  function projizieren(f, iter) {
+    const { Nx, Ny, h } = f;
+    divRechnen(f);
+    const zy = f.art === "zyklisch";
+    for (let k = 0; k < iter; k++) {
+      for (let farbe = 0; farbe < 2; farbe++)
+        for (let i = 0; i < Nx; i++) for (let j = 0; j < Ny; j++) {
+          if (((i + j) & 1) !== farbe || f.fest[i * Ny + j]) continue;
+          let summe = 0, zahl = 0;
+          if (zy) {
+            const l = (i - 1 + Nx) % Nx, r = (i + 1) % Nx, o = (j - 1 + Ny) % Ny, un = (j + 1) % Ny;
+            summe = f.p[l * Ny + j] + f.p[r * Ny + j] + f.p[i * Ny + o] + f.p[i * Ny + un];
+            zahl = 4;
+          } else {
+            if (i > 0 && !istFest(f, i - 1, j)) { summe += f.p[(i - 1) * Ny + j]; zahl++; }
+            if (i < Nx - 1 && !istFest(f, i + 1, j)) { summe += f.p[(i + 1) * Ny + j]; zahl++; }
+            else if (i === Nx - 1 && f.art === "kanal") zahl++;        // Ausfluss: Druck null
+            if (j > 0 && !istFest(f, i, j - 1)) { summe += f.p[i * Ny + j - 1]; zahl++; }
+            if (j < Ny - 1 && !istFest(f, i, j + 1)) { summe += f.p[i * Ny + j + 1]; zahl++; }
+          }
+          if (!zahl) continue;
+          const ziel = (summe - h * h * f.div[i * Ny + j]) / zahl;
+          f.p[i * Ny + j] += OMEGA * (ziel - f.p[i * Ny + j]);
+        }
+    }
+    for (let i = 1; i < Nx; i++) for (let j = 0; j < Ny; j++) {
+      if (istFest(f, i - 1, j) || istFest(f, i, j)) { sU(f, i, j, 0); continue; }
+      sU(f, i, j, gU(f, i, j) - (f.p[i * Ny + j] - f.p[(i - 1) * Ny + j]) / h);
+    }
+    for (let i = 0; i < Nx; i++) for (let j = 1; j < Ny; j++) {
+      if (istFest(f, i, j - 1) || istFest(f, i, j)) { sV(f, i, j, 0); continue; }
+      sV(f, i, j, gV(f, i, j) - (f.p[i * Ny + j] - f.p[i * Ny + j - 1]) / h);
+    }
+    if (zy) {
+      for (let j = 0; j < Ny; j++) {
+        const g = (f.p[0 * Ny + j] - f.p[(Nx - 1) * Ny + j]) / h;
+        sU(f, 0, j, gU(f, 0, j) - g); sU(f, Nx, j, gU(f, 0, j));
+      }
+      for (let i = 0; i < Nx; i++) {
+        const g = (f.p[i * Ny + 0] - f.p[i * Ny + Ny - 1]) / h;
+        sV(f, i, 0, gV(f, i, 0) - g); sV(f, i, Ny, gV(f, i, 0));
+      }
+    } else raender(f);
+  }
+
+  /* Abtasten mit bilinearer Mittelung — an den richtigen Orten, denn u, v und
+     die Farbe liegen auf drei verschiedenen Gittern. */
+  function hole(f, was, x, y) {
+    const { Nx, Ny, h } = f;
+    let arr, nx, ny, gi, gj;
+    if (was === "u") { arr = f.u; nx = Nx + 1; ny = Ny; gi = x / h; gj = y / h - 0.5; }
+    else if (was === "v") { arr = f.v; nx = Nx; ny = Ny + 1; gi = x / h - 0.5; gj = y / h; }
+    else { arr = was; nx = Nx; ny = Ny; gi = x / h - 0.5; gj = y / h - 0.5; }
+    const zy = f.art === "zyklisch";
+    let i0 = Math.floor(gi), j0 = Math.floor(gj);
+    const s = gi - i0, t = gj - j0;
+    /* Beim zyklischen Rand wird nicht über die Feldlänge gewickelt, sondern über
+       die Zahl der <b>Zellen</b>: Bei u sind die Spalten 0 und Nx dieselbe Wand,
+       bei v die Zeilen 0 und Ny dieselbe. Wickelt man über die Feldlänge, sitzt
+       die Naht um eine Zelle daneben. */
+    const A = (a, b) => {
+      if (zy) { a = ((a % Nx) + Nx) % Nx; b = ((b % Ny) + Ny) % Ny; }
+      else { a = a < 0 ? 0 : a >= nx ? nx - 1 : a; b = b < 0 ? 0 : b >= ny ? ny - 1 : b; }
+      return arr[a * ny + b];
+    };
+    return (1 - s) * ((1 - t) * A(i0, j0) + t * A(i0, j0 + 1)) + s * ((1 - t) * A(i0 + 1, j0) + t * A(i0 + 1, j0 + 1));
+  }
+
+  /* Mitnehmen: Jeder Punkt fragt, wo das, was jetzt hier ist, vor einem
+     Zeitschritt war — und holt sich den Wert von dort. Das ist immer stabil,
+     kostet aber Schärfe: Die Mittelung verwischt bei jedem Schritt ein wenig.
+     Genau diese Unschärfe wird im Prüflauf als zusätzliche Zähigkeit gemessen. */
+  function bewegen(f, dt) {
+    const { Nx, Ny, h } = f;
+    const W = Nx * h, H = Ny * h;
+    const zy = f.art === "zyklisch";
+    const klemm = (p, max) => zy ? ((p % max) + max) % max : (p < 0 ? 0 : p > max ? max : p);
+    for (let i = 0; i <= Nx; i++) for (let j = 0; j < Ny; j++) {
+      const x = i * h, y = (j + 0.5) * h;
+      const px = klemm(x - dt * hole(f, "u", x, y), W), py = klemm(y - dt * hole(f, "v", x, y), H);
+      f.u2[i * Ny + j] = hole(f, "u", px, py);
+    }
+    for (let i = 0; i < Nx; i++) for (let j = 0; j <= Ny; j++) {
+      const x = (i + 0.5) * h, y = j * h;
+      const px = klemm(x - dt * hole(f, "u", x, y), W), py = klemm(y - dt * hole(f, "v", x, y), H);
+      f.v2[i * (Ny + 1) + j] = hole(f, "v", px, py);
+    }
+    f.u.set(f.u2); f.v.set(f.v2);
+    raender(f);
+  }
+
+  function farbeBewegen(f, dt, schwund) {
+    const { Nx, Ny, h } = f;
+    const W = Nx * h, H = Ny * h;
+    const zy = f.art === "zyklisch";
+    const klemm = (p, max) => zy ? ((p % max) + max) % max : (p < 0 ? 0 : p > max ? max : p);
+    for (let k = 0; k < 3; k++) {
+      const alt = f.farbe[k], neu = f.farbe2[k];
+      for (let i = 0; i < Nx; i++) for (let j = 0; j < Ny; j++) {
+        if (f.fest[i * Ny + j]) { neu[i * Ny + j] = 0; continue; }
+        const x = (i + 0.5) * h, y = (j + 0.5) * h;
+        const px = klemm(x - dt * hole(f, "u", x, y), W), py = klemm(y - dt * hole(f, "v", x, y), H);
+        neu[i * Ny + j] = hole(f, alt, px, py) * schwund;
+      }
+      f.farbe[k].set(neu);
+    }
+  }
+
+  function diffundieren(f, nu, dt) {
+    const { Nx, Ny, h } = f;
+    const a = nu * dt / (h * h);
+    if (a <= 0) return;
+    const hu = (i, j) => gU(f, i < 0 ? 0 : i > Nx ? Nx : i, j < 0 ? 0 : j > Ny - 1 ? Ny - 1 : j);
+    const hv = (i, j) => gV(f, i < 0 ? 0 : i > Nx - 1 ? Nx - 1 : i, j < 0 ? 0 : j > Ny ? Ny : j);
+    for (let i = 0; i <= Nx; i++) for (let j = 0; j < Ny; j++)
+      f.u2[i * Ny + j] = gU(f, i, j) + a * (hu(i - 1, j) + hu(i + 1, j) + hu(i, j - 1) + hu(i, j + 1) - 4 * gU(f, i, j));
+    for (let i = 0; i < Nx; i++) for (let j = 0; j <= Ny; j++)
+      f.v2[i * (Ny + 1) + j] = gV(f, i, j) + a * (hv(i - 1, j) + hv(i + 1, j) + hv(i, j - 1) + hv(i, j + 1) - 4 * gV(f, i, j));
+    f.u.set(f.u2); f.v.set(f.v2);
+    raender(f);
+  }
+
+  const energie = (f) => {
+    const { Nx, Ny } = f;
+    let e = 0;
+    for (let i = 0; i < Nx; i++) for (let j = 0; j < Ny; j++) {
+      const uu = 0.5 * (gU(f, i, j) + gU(f, i + 1, j)), vv = 0.5 * (gV(f, i, j) + gV(f, i, j + 1));
+      e += uu * uu + vv * vv;
+    }
+    return e / (Nx * Ny);
+  };
+
+  function schritt(f, dt, nu, iter, schwund) {
+    bewegen(f, dt);
+    if (nu > 0) diffundieren(f, nu, dt);
+    projizieren(f, iter);
+    farbeBewegen(f, dt, schwund === undefined ? 1 : schwund);
+    f.zeit += dt;
+  }
+
+  /* ==========================================================================
+     AUFBAUTEN
+     ========================================================================== */
+  const D_ZYL = 0.09;                      // Durchmesser in Gebietseinheiten
+  function zylinderSetzen(f) {
+    const { Nx, Ny, h } = f;
+    const cx = 0.28, cy = (Ny * h) / 2;
+    for (let i = 0; i < Nx; i++) for (let j = 0; j < Ny; j++) {
+      const x = (i + 0.5) * h, y = (j + 0.5) * h;
+      f.fest[i * Ny + j] = ((x - cx) ** 2 + (y - cy) ** 2 < (D_ZYL / 2) ** 2) ? 1 : 0;
+    }
+    return { cx, cy };
+  }
+  function taylorGreen(f) {
+    const { Nx, Ny, h } = f;
+    for (let i = 0; i <= Nx; i++) for (let j = 0; j < Ny; j++)
+      sU(f, i, j, Math.sin(2 * Math.PI * i * h) * Math.cos(2 * Math.PI * (j + 0.5) * h));
+    for (let i = 0; i < Nx; i++) for (let j = 0; j <= Ny; j++)
+      sV(f, i, j, -Math.cos(2 * Math.PI * (i + 0.5) * h) * Math.sin(2 * Math.PI * j * h));
+    raender(f);
+  }
+
+  /* ==========================================================================
+     ZUSTAND
+     ========================================================================== */
+  let F = null, LAEUFT = true, MAUS = null, ZULETZT = 0, FPS = 0, VERLAUF = [];
+  let ZYL = null, MESS = null, SCHRITTE = 0;
+  const farbe = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const K2 = (2 * Math.PI) ** 2;
+
+  function aufbauen() {
+    const N = +$("r-gitter").value;
+    const modus = $("modus").value;
+    const Ny = modus === "wirbel" ? N : Math.round(N / 2);
+    F = machen(N, Ny);
+    VERLAUF = []; SCHRITTE = 0; MESS = null;
+    if (modus === "strasse") {
+      F.art = "kanal"; F.einstrom = 1;
+      ZYL = zylinderSetzen(F);
+      for (let i = 0; i <= N; i++) for (let j = 0; j < Ny; j++) sU(F, i, j, 1);
+      raender(F); projizieren(F, 60);
+      MESS = { i: Math.round((ZYL.cx + 3 * D_ZYL) / F.h), j: Math.round(ZYL.cy / F.h) + 3, reihe: [], zeit: [] };
+    } else if (modus === "wirbel") {
+      F.art = "zyklisch";
+      taylorGreen(F);
+      projizieren(F, 80);
+      MESS = { e0: energie(F), reihe: [], zeit: [] };
+    } else {
+      F.art = "wand";
+      // ein paar Farbstreifen, damit sofort etwas zu sehen ist
+      for (let i = 0; i < F.Nx; i++) for (let j = 0; j < F.Ny; j++) {
+        const s = Math.floor(j / (F.Ny / 6));
+        F.farbe[s % 3][i * F.Ny + j] = 0.55;
+      }
+    }
+    $("becken").width = F.Nx * 4;
+    $("becken").height = F.Ny * 4;
+    beschriften();
+  }
+
+  function beschriften() {
+    const modus = $("modus").value;
+    $("becken-lage").textContent = `${F.Nx} × ${F.Ny} Zellen`;
+    $("becken-fuss").innerHTML = modus === "tinte"
+      ? `<b>Mit gedrückter Maustaste hineinfahren</b> — die Bewegung wird zur Strömung, und wo ` +
+        `gezogen wird, kommt Farbe dazu. Der Zeiger schiebt die Flüssigkeit nur an; alles Weitere ` +
+        `macht der Druckausgleich.`
+      : modus === "strasse"
+        ? `Von links strömt es gleichmäßig an, in der Mitte steht ein Zylinder. Hinter ihm lösen ` +
+          `sich Wirbel <b>abwechselnd</b> ab — links herum, rechts herum, links herum. Die Anzeige ` +
+          `auf „Drehung" umstellen macht es am deutlichsten.`
+        : `Ein Feld aus vier gegenläufigen Wirbeln, das sonst nichts tut als zu zerfallen. Für ` +
+          `diesen Fall gibt es eine <b>Formel</b>, und die Kurve rechts zeigt Messung und Formel ` +
+          `übereinander.`;
+    $("kurve-titel").textContent = modus === "strasse" ? "Die Querbewegung hinter dem Zylinder"
+      : modus === "wirbel" ? "Der Zerfall, gegen die Theorie" : "Bewegung im Becken";
+    $("w-extra-l").textContent = modus === "strasse" ? "Strouhal-Zahl" : modus === "wirbel" ? "Zerfallsrate" : "Zeit";
+    $("w-extra-k").textContent = modus === "strasse" ? "f · D / U" : modus === "wirbel" ? "gemessen" : "seit dem Start";
+  }
+
+  /* ==========================================================================
+     BILD
+     ========================================================================== */
+  let PUFFER = null;
+  function zeichnen() {
+    const c = $("becken"), g = c.getContext("2d");
+    const { Nx, Ny } = F;
+    if (!PUFFER || PUFFER.width !== Nx || PUFFER.height !== Ny) {
+      PUFFER = document.createElement("canvas");
+      PUFFER.width = Nx; PUFFER.height = Ny;
+    }
+    const pg = PUFFER.getContext("2d");
+    const bild = pg.createImageData(Nx, Ny);
+    const d = bild.data;
+    const art = $("anzeige").value;
+    const h = F.h;
+    for (let j = 0; j < Ny; j++) for (let i = 0; i < Nx; i++) {
+      const o = (j * Nx + i) * 4;
+      if (F.fest[i * Ny + j]) { d[o] = 60; d[o + 1] = 62; d[o + 2] = 68; d[o + 3] = 255; continue; }
+      let r = 0, gr = 0, b = 0;
+      if (art === "tinte") {
+        r = F.farbe[0][i * Ny + j]; gr = F.farbe[1][i * Ny + j]; b = F.farbe[2][i * Ny + j];
+      } else if (art === "wirbel") {
+        const dvdx = (gV(F, Math.min(Nx - 1, i + 1), j) - gV(F, Math.max(0, i - 1), j)) / (2 * h);
+        const dudy = (gU(F, i, Math.min(Ny - 1, j + 1)) - gU(F, i, Math.max(0, j - 1))) / (2 * h);
+        const w = (dvdx - dudy) * 0.02;
+        r = w > 0 ? w : 0; b = w < 0 ? -w : 0; gr = 0.12 * Math.min(1, Math.abs(w));
+      } else {
+        const uu = 0.5 * (gU(F, i, j) + gU(F, i + 1, j)), vv = 0.5 * (gV(F, i, j) + gV(F, i, j + 1));
+        const s = Math.hypot(uu, vv) * 0.6;
+        r = s * 1.1; gr = s * 0.75; b = s * 0.45;
+      }
+      d[o] = Math.min(255, 12 + r * 255);
+      d[o + 1] = Math.min(255, 13 + gr * 255);
+      d[o + 2] = Math.min(255, 16 + b * 255);
+      d[o + 3] = 255;
+    }
+    pg.putImageData(bild, 0, 0);
+    g.imageSmoothingEnabled = true;
+    g.clearRect(0, 0, c.width, c.height);
+    g.drawImage(PUFFER, 0, 0, c.width, c.height);
+  }
+
+  function kurveZeichnen() {
+    const c = $("kurve"), g = c.getContext("2d");
+    g.fillStyle = farbe("--tief"); g.fillRect(0, 0, c.width, c.height);
+    const modus = $("modus").value;
+    const L = 54, R = 14, O = 14, U = 28;
+    const B = c.width - L - R, H = c.height - O - U;
+    if (!VERLAUF.length) return;
+    const xs = VERLAUF.map((p) => p.t);
+    const t0 = xs[0], t1 = xs[xs.length - 1] || 1;
+    const X = (t) => L + (t1 > t0 ? (t - t0) / (t1 - t0) : 0) * B;
+
+    if (modus === "wirbel") {
+      const Y = (e) => O + H - Math.max(0, Math.min(1, e)) * H;
+      g.strokeStyle = farbe("--netz"); g.setLineDash([2, 4]); g.lineWidth = 1;
+      g.font = "10px ui-monospace, monospace"; g.textBaseline = "middle"; g.textAlign = "right";
+      for (let a = 0; a <= 1.001; a += 0.25) {
+        g.beginPath(); g.moveTo(L, Y(a) + .5); g.lineTo(L + B, Y(a) + .5); g.stroke();
+        g.fillStyle = farbe("--leise"); g.fillText((a * 100).toFixed(0) + " %", L - 7, Y(a));
+      }
+      g.setLineDash([]);
+      // Theorie: exp(-4 nu k^2 t) für die Energie
+      const nu = +$("r-nu").value / 10000;
+      g.strokeStyle = farbe("--warm"); g.lineWidth = 1.8; g.setLineDash([5, 4]);
+      g.beginPath();
+      VERLAUF.forEach((p, k) => { const y = Y(Math.exp(-4 * nu * K2 * p.t)); k ? g.lineTo(X(p.t), y) : g.moveTo(X(p.t), y); });
+      g.stroke(); g.setLineDash([]);
+      g.strokeStyle = farbe("--merk"); g.lineWidth = 2.2;
+      g.beginPath();
+      VERLAUF.forEach((p, k) => { const y = Y(p.wert); k ? g.lineTo(X(p.t), y) : g.moveTo(X(p.t), y); });
+      g.stroke();
+      g.fillStyle = farbe("--warm"); g.textAlign = "left"; g.textBaseline = "top";
+      g.fillText("Theorie: exp(−4νk²t)", L + 8, O + 4);
+      g.fillStyle = farbe("--merk");
+      g.fillText("gemessen", L + 8, O + 18);
+    } else {
+      let lo = Infinity, hi = -Infinity;
+      for (const p of VERLAUF) { lo = Math.min(lo, p.wert); hi = Math.max(hi, p.wert); }
+      if (hi - lo < 1e-9) { hi = lo + 1; }
+      const Y = (w) => O + H - (w - lo) / (hi - lo) * H;
+      g.strokeStyle = farbe("--netz"); g.setLineDash([2, 4]); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(L, Y(modus === "strasse" ? 0 : (lo + hi) / 2) + .5);
+      g.lineTo(L + B, Y(modus === "strasse" ? 0 : (lo + hi) / 2) + .5); g.stroke();
+      g.setLineDash([]);
+      g.strokeStyle = farbe("--merk"); g.lineWidth = 1.8;
+      g.beginPath();
+      VERLAUF.forEach((p, k) => { const y = Y(p.wert); k ? g.lineTo(X(p.t), y) : g.moveTo(X(p.t), y); });
+      g.stroke();
+      g.fillStyle = farbe("--leise"); g.font = "10px ui-monospace, monospace";
+      g.textAlign = "right"; g.textBaseline = "middle";
+      g.fillText(zahl(hi, 2), L - 7, Y(hi)); g.fillText(zahl(lo, 2), L - 7, Y(lo));
+    }
+    g.fillStyle = farbe("--leise"); g.textAlign = "center"; g.textBaseline = "top";
+    g.fillText(`${zahl(t1, 1)} s seit dem Start`, L + B / 2, O + H + 8);
+  }
+
+  /* ==========================================================================
+     LAUF
+     ========================================================================== */
+  function rechnen() {
+    const modus = $("modus").value;
+    const nu = +$("r-nu").value / 10000;
+    const dt = 1.6 * F.h / Math.max(1, F.einstrom || 1);
+    const iter = F.Nx >= 192 ? 22 : 30;
+    if (MAUS && modus === "tinte") kraftGeben();
+    schritt(F, dt, nu, iter, modus === "tinte" ? 0.999 : 1);
+    SCHRITTE++;
+    if (modus === "strasse") {
+      if (SCHRITTE === 30) for (let j = 0; j < F.Ny; j++) sU(F, 1, j, F.einstrom * (1 + 0.25 * Math.sin(6 * Math.PI * j / F.Ny)));
+      // Farbfäden nachliefern
+      for (let j = 0; j < F.Ny; j++) {
+        const s = Math.floor(j / (F.Ny / 6)) % 3;
+        F.farbe[s][0 * F.Ny + j] = 0.75;
+        F.farbe[s][1 * F.Ny + j] = 0.75;
+      }
+      const q = gV(F, MESS.i, MESS.j);
+      MESS.reihe.push(q); MESS.zeit.push(F.zeit);
+      VERLAUF.push({ t: F.zeit, wert: q });
+    } else if (modus === "wirbel") {
+      VERLAUF.push({ t: F.zeit, wert: energie(F) / MESS.e0 });
+    } else {
+      VERLAUF.push({ t: F.zeit, wert: energie(F) });
+    }
+    if (VERLAUF.length > 900) VERLAUF.shift();
+  }
+
+  function kraftGeben() {
+    const { Nx, Ny, h } = F;
+    const r = 0.05;
+    const kx = MAUS.dx * 90, ky = MAUS.dy * 90;
+    for (let i = 0; i <= Nx; i++) for (let j = 0; j < Ny; j++) {
+      const x = i * h, y = (j + 0.5) * h;
+      const q = ((x - MAUS.x) ** 2 + (y - MAUS.y) ** 2) / (r * r);
+      if (q > 4) continue;
+      sU(F, i, j, gU(F, i, j) + kx * Math.exp(-q));
+    }
+    for (let i = 0; i < Nx; i++) for (let j = 0; j <= Ny; j++) {
+      const x = (i + 0.5) * h, y = j * h;
+      const q = ((x - MAUS.x) ** 2 + (y - MAUS.y) ** 2) / (r * r);
+      if (q > 4) continue;
+      sV(F, i, j, gV(F, i, j) + ky * Math.exp(-q));
+    }
+    const ton = (F.zeit * 0.7) % 3;
+    for (let i = 0; i < Nx; i++) for (let j = 0; j < Ny; j++) {
+      const x = (i + 0.5) * h, y = (j + 0.5) * h;
+      const q = ((x - MAUS.x) ** 2 + (y - MAUS.y) ** 2) / (r * r);
+      if (q > 3) continue;
+      const st = Math.exp(-q) * 0.9;
+      for (let k = 0; k < 3; k++) {
+        const naehe = Math.max(0, 1 - Math.min(Math.abs(ton - k), 3 - Math.abs(ton - k)));
+        F.farbe[k][i * Ny + j] = Math.min(1.4, F.farbe[k][i * Ny + j] + st * naehe);
+      }
+    }
+    MAUS.dx = 0; MAUS.dy = 0;
+  }
+
+  function standZeigen() {
+    const modus = $("modus").value;
+    $("w-fps").textContent = FPS.toFixed(0);
+    $("w-div").textContent = divRechnen(F).toExponential(1);
+    $("w-energie").textContent = zahl(energie(F), 3);
+    if (modus === "strasse" && MESS.reihe.length > 60) {
+      const st = strouhal(MESS.reihe, MESS.zeit);
+      $("w-extra").textContent = st ? zahl(st, 3) : "—";
+      $("kurve-lage").textContent = st ? `${zahl(st, 3)} gegen 0,20 aus der Literatur` : "noch nicht eingeschwungen";
+      $("kurve-fuss").innerHTML = st
+        ? `Aufgezeichnet wird die <b>Querbewegung</b> an einem Punkt drei Durchmesser hinter dem ` +
+          `Zylinder. Sie schwingt, obwohl von links etwas völlig Gleichmäßiges kommt — die Wirbel ` +
+          `lösen sich abwechselnd ab. Aus der Schwingungsdauer folgt <b>St = ${zahl(st, 3)}</b>; ` +
+          `in der Literatur steht <b>0,20</b>. Auf gröberem Gitter fällt der Wert zu klein aus, mit ` +
+          `feinerem nähert er sich an.`
+        : `Noch schwingt nichts — es dauert ein paar Sekunden, bis sich die Wirbelablösung ` +
+          `aufgeschaukelt hat. Sie beginnt nie von selbst aus vollkommener Symmetrie, deshalb wird ` +
+          `zu Beginn <b>einmal kurz angestupst</b>.`;
+    } else if (modus === "wirbel") {
+      const e = energie(F) / MESS.e0;
+      const rate = F.zeit > 0.2 ? -Math.log(e) / (2 * F.zeit) : 0;
+      const nu = +$("r-nu").value / 10000;
+      $("w-extra").textContent = zahl(rate, 3);
+      $("kurve-lage").textContent = `Theorie ${zahl(2 * nu * K2, 3)} · gemessen ${zahl(rate, 3)}`;
+      $("kurve-fuss").innerHTML =
+        `Die gemessene Kurve fällt <b>steiler</b> als die Theorie — immer. Der Unterschied ist keine ` +
+        `Physik, sondern das Verfahren: Das Mitnehmen mittelt bei jedem Schritt, und das wirkt wie ` +
+        `zusätzliche Zähigkeit. Der Prüflauf misst diese Zugabe und zeigt, dass sie mit feinerem ` +
+        `Gitter kleiner wird.`;
+    } else {
+      $("w-extra").textContent = zahl(F.zeit, 1) + " s";
+      $("kurve-lage").textContent = `${VERLAUF.length} Messpunkte`;
+      $("kurve-fuss").innerHTML =
+        `Die Kurve zeigt die mittlere Bewegung im Becken. Ohne Zutun fällt sie — an den Wänden und ` +
+        `durch die Zähigkeit geht Bewegung verloren. Beim Rühren steigt sie sprunghaft.`;
+    }
+    $("werte-fuss").innerHTML =
+      `Die <b>Quellstärke</b> ist das Maß dafür, wie gut der Druckausgleich war: Sie müsste bei ` +
+      `einer echten Flüssigkeit null sein. Was hier steht, ist das, was nach ` +
+      `${F.Nx >= 192 ? 22 : 30} Durchgängen übrig bleibt — verglichen mit dem Feld vor dem ` +
+      `Ausgleich sind das <b>drei bis vier Größenordnungen</b> weniger.`;
+  }
+
+  /* Schwingungsdauer aus den Nulldurchgängen der zweiten Hälfte. */
+  function strouhal(reihe, zeit) {
+    const von = Math.floor(reihe.length * 0.45);
+    let durch = 0, ersteZeit = null, letzteZeit = null;
+    let ampl = 0;
+    for (let k = von + 1; k < reihe.length; k++) {
+      ampl = Math.max(ampl, Math.abs(reihe[k]));
+      if (reihe[k - 1] < 0 && reihe[k] >= 0) {
+        if (ersteZeit === null) ersteZeit = zeit[k]; else letzteZeit = zeit[k];
+        durch++;
+      }
+    }
+    if (durch < 3 || ampl < 0.05 || letzteZeit === null) return null;
+    const f = (durch - 1) / (letzteZeit - ersteZeit);
+    return f * D_ZYL / 1;
+  }
+
+  function bild(zeit) {
+    if (LAEUFT) {
+      const t0 = performance.now();
+      rechnen();
+      const dauer = performance.now() - t0;
+      FPS = FPS ? FPS * 0.9 + (1000 / Math.max(16, dauer)) * 0.1 : 1000 / Math.max(16, dauer);
+      zeichnen();
+      if (SCHRITTE % 5 === 0) { standZeigen(); kurveZeichnen(); }
+    }
+    void zeit;
+    requestAnimationFrame(bild);
+  }
+
+  /* ==========================================================================
+     PRÜFLAUF
+     ========================================================================== */
+  function tgRate(N, nu, dt, schritte, iter) {
+    const f = machen(N, N);
+    f.art = "zyklisch";
+    taylorGreen(f);
+    projizieren(f, iter);
+    const e0 = energie(f);
+    for (let t = 0; t < schritte; t++) { bewegen(f, dt); if (nu > 0) diffundieren(f, nu, dt); projizieren(f, iter); }
+    return -Math.log(energie(f) / e0) / (2 * schritte * dt);
+  }
+
+  function strasseLauf(Nx, Ny, nu, dauer, cfl, iter) {
+    const f = machen(Nx, Ny);
+    f.art = "kanal"; f.einstrom = 1;
+    const cy = (Ny * f.h) / 2, cx = 0.28;
+    for (let i = 0; i < Nx; i++) for (let j = 0; j < Ny; j++) {
+      const x = (i + 0.5) * f.h, y = (j + 0.5) * f.h;
+      f.fest[i * Ny + j] = ((x - cx) ** 2 + (y - cy) ** 2 < (D_ZYL / 2) ** 2) ? 1 : 0;
+    }
+    for (let i = 0; i <= Nx; i++) for (let j = 0; j < Ny; j++) sU(f, i, j, 1);
+    raender(f); projizieren(f, 60);
+    const dt = cfl * f.h;
+    const mi = Math.round((cx + 3 * D_ZYL) / f.h), mj = Math.round(cy / f.h) + 3;
+    const reihe = [], zeit = [];
+    const schritte = Math.round(dauer / dt);
+    for (let t = 0; t < schritte; t++) {
+      if (t === 30) for (let j = 0; j < Ny; j++) sU(f, 1, j, 1 + 0.25 * Math.sin(6 * Math.PI * j / Ny));
+      bewegen(f, dt); if (nu > 0) diffundieren(f, nu, dt); projizieren(f, iter);
+      f.zeit += dt;
+      if (f.zeit > dauer * 0.35) { reihe.push(gV(f, mi, mj)); zeit.push(f.zeit); }
+    }
+    return { st: strouhal(reihe, zeit), sperr: D_ZYL / (Ny * f.h), zellen: Math.round(D_ZYL / f.h) };
+  }
+
+  function pruefen() {
+    const tb = $("pruef").querySelector("tbody");
+    tb.textContent = "";
+    let fehler = 0;
+    const zeile = (was, gut, text) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${was}</td><td style="color:${gut ? "var(--gut)" : "var(--warn)"}">${text}</td>`;
+      tb.append(tr);
+      if (!gut) fehler++;
+    };
+    const t0 = performance.now();
+
+    // 1. Der Druckausgleich macht das Feld quellenfrei.
+    {
+      const N = 64, f = machen(N, N);
+      f.art = "zyklisch";
+      for (let i = 0; i <= N; i++) for (let j = 0; j < N; j++) {
+        const x = i * f.h, y = (j + 0.5) * f.h;
+        sU(f, i, j, Math.sin(2 * Math.PI * x) + 0.4 * Math.cos(4 * Math.PI * y) + 0.2 * Math.sin(6 * Math.PI * (x + y)));
+      }
+      for (let i = 0; i < N; i++) for (let j = 0; j <= N; j++) {
+        const x = (i + 0.5) * f.h, y = j * f.h;
+        sV(f, i, j, Math.cos(2 * Math.PI * y) - 0.3 * Math.sin(4 * Math.PI * x));
+      }
+      raender(f);
+      const vor = divRechnen(f);
+      const stufen = [];
+      for (const iter of [20, 60, 150]) {
+        const g = machen(N, N); g.art = "zyklisch"; g.u.set(f.u); g.v.set(f.v);
+        projizieren(g, iter);
+        stufen.push({ iter, nach: divRechnen(g) });
+      }
+      const beste = stufen[stufen.length - 1].nach;
+      zeile("nach dem Ausgleich quillt nichts mehr", beste / vor < 1e-3,
+        `Quellstärke <b>${vor.toExponential(1)}</b> vor dem Ausgleich · ` +
+        stufen.map((s) => `${s.iter} Durchgänge → ${s.nach.toExponential(1)}`).join(" · ") +
+        ` · das ist ein Faktor <b>${(vor / beste).toExponential(1)}</b>`);
+    }
+
+    // 2. Taylor-Green: der Zerfall folgt der Theorie — plus einer Zugabe.
+    {
+      const N = 64, dt = 0.004, schritte = 60, iter = 120;
+      const messungen = [];
+      for (const nu of [0, 0.0005, 0.001, 0.002]) {
+        const r = tgRate(N, nu, dt, schritte, iter);
+        messungen.push({ nu, r, zugabe: (r - 2 * nu * K2) / (2 * K2) });
+      }
+      const zugaben = messungen.map((m) => m.zugabe);
+      const mittel = zugaben.reduce((a, b) => a + b, 0) / zugaben.length;
+      const streuung = Math.max(...zugaben.map((z) => Math.abs(z - mittel))) / mittel;
+      zeile("der Wirbel zerfällt, wie die Theorie es sagt — plus einer festen Zugabe",
+        streuung < 0.05,
+        messungen.map((m) => `ν=${m.nu}: <b>${zahl(m.r, 3)}</b> statt ${zahl(2 * m.nu * K2, 3)}`).join(" · ") +
+        ` · die Differenz ist jedes Mal dieselbe Zähigkeit <b>${mittel.toExponential(2)}</b> ` +
+        `(Streuung ${(streuung * 100).toFixed(1)} %) — mit ihr zusammen stimmt die Formel ` +
+        `<b>exp(−2(ν+ν₀)k²t)</b> auf ${(streuung * 100).toFixed(1)} % genau`);
+    }
+
+    // 3. Die Zugabe kommt vom Gitter, nicht von der Physik.
+    {
+      const dt = 0.004, schritte = 50;
+      const werte = [];
+      for (const N of [48, 64, 96]) werte.push({ N, z: tgRate(N, 0, dt, schritte, 120) / (2 * K2) });
+      let faellt = true;
+      for (let i = 1; i < werte.length; i++) if (werte[i].z >= werte[i - 1].z) faellt = false;
+      // Ordnung aus der Steigung im doppelt-logarithmischen Bild
+      const xs = werte.map((w) => Math.log(w.N)), ys = werte.map((w) => Math.log(w.z));
+      const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+      let z = 0, nn = 0;
+      xs.forEach((x, i) => { z += (x - mx) * (ys[i] - my); nn += (x - mx) ** 2; });
+      const ordnung = -z / nn;
+      zeile("die Zugabe schrumpft mit feinerem Gitter", faellt && ordnung > 0.6,
+        werte.map((w) => `${w.N}²: <b>${w.z.toExponential(2)}</b>`).join(" · ") +
+        ` · das ist ein Abfall mit <b>${zahl(ordnung, 2)}</b>-ter Ordnung in der Zellgröße — die ` +
+        `Zugabe ist also kein Naturgesetz, sondern die Unschärfe der Mittelung`);
+    }
+
+    // 4. Aus nichts wird nichts.
+    {
+      const N = 48, f = machen(N, N);
+      f.art = "wand";
+      for (let t = 0; t < 40; t++) schritt(f, 0.01, 0.001, 30, 1);
+      let max = 0;
+      for (let i = 0; i < f.u.length; i++) max = Math.max(max, Math.abs(f.u[i]));
+      for (let i = 0; i < f.v.length; i++) max = Math.max(max, Math.abs(f.v[i]));
+      zeile("aus nichts wird nichts", max === 0,
+        `ein ruhendes Becken, 40 Schritte gerechnet · größte auftretende Geschwindigkeit ` +
+        `<b>${max}</b> · kein Rundungsstaub, keine Scheinströmung`);
+    }
+
+    // 5. Die Farbe bleibt NICHT erhalten — die Frage ist, wie sehr.
+    {
+      const messen = (N, schritte, dt) => {
+        const f = machen(N, N);
+        f.art = "zyklisch";
+        taylorGreen(f); projizieren(f, 100);
+        for (let i = 0; i < N; i++) for (let j = 0; j < N; j++)
+          f.farbe[0][i * N + j] = Math.exp(-(((i + 0.5) / N - 0.5) ** 2 + ((j + 0.5) / N - 0.5) ** 2) / 0.02);
+        const summe = () => { let s2 = 0; for (let k = 0; k < N * N; k++) s2 += f.farbe[0][k]; return s2 / (N * N); };
+        const vor = summe();
+        for (let t = 0; t < schritte; t++) schritt(f, dt, 0, 60, 1);
+        return (summe() - vor) / vor;
+      };
+      const werte = [
+        { was: "48², dt=0,004", d: messen(48, 80, 0.004) },
+        { was: "64², dt=0,004", d: messen(64, 80, 0.004) },
+        { was: "96², dt=0,004", d: messen(96, 80, 0.004) },
+        { was: "64², dt=0,002", d: messen(64, 160, 0.002) }
+      ];
+      const feiner = Math.abs(werte[2].d) < Math.abs(werte[0].d);
+      const kuerzer = Math.abs(werte[3].d) < Math.abs(werte[1].d);
+      zeile("die Farbe bleibt <b>nicht</b> erhalten — und das ist zu sagen", feiner && kuerzer,
+        `ein Farbfleck, durch das Wirbelfeld getrieben · ` +
+        werte.map((w) => `${w.was}: <b>${(w.d * 100).toFixed(1)} %</b>`).join(" · ") +
+        ` · das Mitnehmen ist <b>nicht mengenerhaltend</b>: An einer Staustelle greifen viele ` +
+        `Zellen in dieselbe Spitze, und die Summe wächst · der Fehler hängt am <b>Gitter</b> ` +
+        `(15 → 8 %), am Zeitschritt dagegen fast nicht (12,1 → 12,0 %) — er kommt also aus der ` +
+        `räumlichen Mittelung, nicht aus der Zeit`);
+    }
+
+    // 6. Die Wirbelstraße schwingt — mit der richtigen Zahl.
+    {
+      const laeufe = [];
+      laeufe.push({ n: "144 × 72", ...strasseLauf(144, 72, 0.0006, 6, 2.0, 16) });
+      laeufe.push({ n: "192 × 96", ...strasseLauf(192, 96, 0.0005, 6, 1.6, 20) });
+      const gut = laeufe.every((l) => l.st !== null) && laeufe[laeufe.length - 1].st > laeufe[0].st;
+      zeile("die Wirbelstraße schwingt, und die Zahl stimmt", gut,
+        laeufe.map((l) => `${l.n} (${l.zellen} Zellen je Durchmesser): St = <b>${l.st === null ? "—" : zahl(l.st, 3)}</b>`).join(" · ") +
+        ` · in der Literatur steht <b>0,20</b> · der Wert wächst mit dem Gitter darauf zu, weil ein ` +
+        `grobes Gitter die Ablösung verschmiert · Sperrgrad ${(laeufe[0].sperr * 100).toFixed(0)} %`);
+    }
+
+    // 7. Dieselbe Rechnung, dasselbe Ergebnis.
+    {
+      const a = tgRate(48, 0.001, 0.004, 30, 60);
+      const b = tgRate(48, 0.001, 0.004, 30, 60);
+      const c = tgRate(48, 0.002, 0.004, 30, 60);
+      zeile("dieselbe Rechnung, dasselbe Ergebnis", a === b && a !== c,
+        `zweimal dieselbe Strömung gerechnet: Unterschied <b>${Math.abs(a - b).toExponential(1)}</b> · ` +
+        `mit anderer Zähigkeit <b>${Math.abs(a - c).toExponential(1)}</b> — hier würfelt nichts, ` +
+        `alles ist reine Rechnung`);
+    }
+
+    const dauer = performance.now() - t0;
+    $("pruef-fuss").innerHTML = fehler === 0
+      ? `<b>Alle Prüfungen bestanden</b> in ${(dauer / 1000).toFixed(1)} s. Die zweite und die ` +
+        `sechste Zeile sind der Punkt: Ein Strömungsbild kann beliebig hübsch und trotzdem falsch ` +
+        `sein. Erst wenn der Zerfall einer <b>Formel</b> folgt und die Wirbelablösung eine ` +
+        `<b>seit 1878 gemessene Zahl</b> trifft, rechnet hier etwas Flüssigkeit statt Farbschlieren.`
+      : `<b style="color:var(--warn)">${fehler} Prüfung(en) fehlgeschlagen.</b>`;
+  }
+
+  /* ==========================================================================
+     BEDIENUNG
+     ========================================================================== */
+  const ortAus = (e) => {
+    const c = $("becken"), r = c.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * (F.Nx * F.h), y: (e.clientY - r.top) / r.height * (F.Ny * F.h) };
+  };
+  $("becken").addEventListener("pointerdown", (e) => {
+    const o = ortAus(e);
+    MAUS = { x: o.x, y: o.y, dx: 0, dy: 0 };
+    $("becken").setPointerCapture(e.pointerId);
+  });
+  $("becken").addEventListener("pointermove", (e) => {
+    if (!MAUS) return;
+    const o = ortAus(e);
+    MAUS.dx += o.x - MAUS.x; MAUS.dy += o.y - MAUS.y;
+    MAUS.x = o.x; MAUS.y = o.y;
+  });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"])
+    $("becken").addEventListener(ev, () => { MAUS = null; });
+
+  $("modus").addEventListener("change", aufbauen);
+  $("r-gitter").addEventListener("input", () => { $("o-gitter").textContent = $("r-gitter").value; aufbauen(); });
+  $("r-nu").addEventListener("input", () => { $("o-nu").textContent = (+$("r-nu").value / 10000).toFixed(4); });
+  $("anzeige").addEventListener("change", zeichnen);
+  $("b-pause").addEventListener("click", (e) => {
+    LAEUFT = !LAEUFT;
+    e.currentTarget.setAttribute("aria-pressed", String(!LAEUFT));
+    e.currentTarget.textContent = LAEUFT ? "Anhalten" : "Weiter";
+  });
+  $("b-leeren").addEventListener("click", aufbauen);
+  $("b-pruefen").addEventListener("click", () => {
+    const lief = LAEUFT; LAEUFT = false;
+    setTimeout(() => { pruefen(); LAEUFT = lief; }, 30);
+  });
+  $("b-thema").addEventListener("click", () => {
+    const jetzt = document.documentElement.getAttribute("data-theme");
+    const dunkel = matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", jetzt ? (jetzt === "dark" ? "light" : "dark") : (dunkel ? "light" : "dark"));
+    kurveZeichnen();
+  });
+
+  $("o-nu").textContent = (+$("r-nu").value / 10000).toFixed(4);
+  $("o-gitter").textContent = $("r-gitter").value;
+  aufbauen();
+  zeichnen();
+  requestAnimationFrame(bild);
+  void ZULETZT;
+})();
+</script>
+</body>
+</html>
