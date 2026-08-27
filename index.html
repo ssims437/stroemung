@@ -1007,6 +1007,9 @@
     document.documentElement.setAttribute("data-theme", jetzt ? (jetzt === "dark" ? "light" : "dark") : (dunkel ? "light" : "dark"));
     kurveZeichnen();
   });
+  /* auch der Systemwechsel: sonst bleibt die Kurve in den Farben der Nacht,
+     während der Text schon hell ist */
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", kurveZeichnen);
 
   if (RUHIG) {
     $("b-pause").textContent = "Weiter";
